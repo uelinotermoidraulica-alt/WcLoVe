@@ -1,1 +1,9 @@
-{"scripts":{"start":"vite --host 0.0.0.0","build":"vite build","preview":"vite preview --host 0.0.0.0"},"dependencies":{"@vitejs/plugin-react":"latest","vite":"latest","react":"latest","react-dom":"latest","lucide-react":"latest"},"devDependencies":{}}
+{
+  "name": "WC LoVe",
+  "short_name": "WC LoVe",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f3f4",
+  "theme_color": "#e85b92",
+  "icons": []
+}
