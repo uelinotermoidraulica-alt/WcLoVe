@@ -1,0 +1,121 @@
+import React, {useEffect, useMemo, useState} from 'react';
+import { createRoot } from 'react-dom/client';
+import { MapPin, Plus, Star, Camera, Heart, Navigation, Search, Toilet, Trash2, Save } from 'lucide-react';
+import './style.css';
+
+const STORAGE_KEY = 'wc-love-reviews-v1';
+const demoToilets = [
+  {id:'demo-1', name:'Bagno Pubblico Centro', type:'Bagno pubblico', lat:45.9807, lng:9.0342, rating:4, clean:4, paper:true, soap:true, free:true, accessible:true, baby:false, comment:'Pulito e comodo, ottimo in emergenza.', photo:'', createdAt:new Date().toISOString()},
+  {id:'demo-2', name:'Bar vicino alla piazza', type:'Bar / Locale', lat:45.9814, lng:9.0365, rating:3, clean:3, paper:true, soap:false, free:false, accessible:false, baby:false, comment:'Serve consumazione, ma bagno accettabile.', photo:'', createdAt:new Date().toISOString()}
+];
+
+function distanceKm(a,b){
+  if(!a || !b) return null;
+  const R=6371, dLat=(b.lat-a.lat)*Math.PI/180, dLon=(b.lng-a.lng)*Math.PI/180;
+  const la1=a.lat*Math.PI/180, la2=b.lat*Math.PI/180;
+  const x=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+function Stars({value,setValue}){
+  return <div className="stars">{[1,2,3,4,5].map(n=><button type="button" key={n} onClick={()=>setValue?.(n)} className={n<=value?'on':''}><Star size={26} fill="currentColor"/></button>)}</div>
+}
+
+function App(){
+  const [toilets,setToilets]=useState(()=>{
+    try{return JSON.parse(localStorage.getItem(STORAGE_KEY)) || demoToilets}catch{return demoToilets}
+  });
+  const [tab,setTab]=useState('map');
+  const [query,setQuery]=useState('');
+  const [userPos,setUserPos]=useState(null);
+  const [geoError,setGeoError]=useState('');
+  const [form,setForm]=useState({name:'',type:'Bagno pubblico',rating:5,clean:5,paper:true,soap:true,free:true,accessible:false,baby:false,comment:'',photo:'',lat:'',lng:''});
+
+  useEffect(()=>localStorage.setItem(STORAGE_KEY,JSON.stringify(toilets)),[toilets]);
+  useEffect(()=>{locate()},[]);
+
+  function locate(){
+    if(!navigator.geolocation){setGeoError('GPS non disponibile su questo dispositivo.');return}
+    navigator.geolocation.getCurrentPosition(
+      p=>{const pos={lat:p.coords.latitude,lng:p.coords.longitude}; setUserPos(pos); setGeoError(''); setForm(f=>({...f, lat:f.lat||pos.lat.toFixed(6), lng:f.lng||pos.lng.toFixed(6)}));},
+      ()=>setGeoError('Permesso posizione negato. Puoi inserire coordinate manualmente.'),
+      {enableHighAccuracy:true,timeout:8000,maximumAge:30000}
+    );
+  }
+
+  const filtered=useMemo(()=>toilets
+    .map(t=>({...t, dist:distanceKm(userPos,{lat:Number(t.lat),lng:Number(t.lng)})}))
+    .filter(t=>(t.name+t.type+t.comment).toLowerCase().includes(query.toLowerCase()))
+    .sort((a,b)=>(a.dist??9999)-(b.dist??9999)),[toilets,query,userPos]);
+
+  function handlePhoto(e){
+    const file=e.target.files?.[0]; if(!file)return;
+    const reader=new FileReader(); reader.onload=()=>setForm(f=>({...f,photo:reader.result})); reader.readAsDataURL(file);
+  }
+
+  function addReview(e){
+    e.preventDefault();
+    if(!form.name.trim()) return alert('Inserisci il nome del bagno o del locale.');
+    const lat=Number(form.lat), lng=Number(form.lng);
+    if(!lat || !lng) return alert('Inserisci coordinate valide o usa il GPS.');
+    const item={...form,id:crypto.randomUUID(),lat,lng,createdAt:new Date().toISOString()};
+    setToilets([item,...toilets]);
+    setForm({name:'',type:'Bagno pubblico',rating:5,clean:5,paper:true,soap:true,free:true,accessible:false,baby:false,comment:'',photo:'',lat:userPos?.lat?.toFixed(6)||'',lng:userPos?.lng?.toFixed(6)||''});
+    setTab('list');
+  }
+
+  function remove(id){ if(confirm('Eliminare questa recensione?')) setToilets(toilets.filter(t=>t.id!==id)); }
+
+  return <div className="app">
+    <header className="hero">
+      <div className="brand"><div className="logo"><Toilet size={30}/><Heart size={18} className="mini" fill="currentColor"/></div><div><h1>WC LoVe</h1><p>WC Location & Vote</p></div></div>
+      <button className="gps" onClick={locate}><Navigation size={18}/> GPS</button>
+    </header>
+
+    <main>
+      {tab==='map' && <section className="card mapcard">
+        <div className="search"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Cerca bagno, bar, stazione..."/></div>
+        <div className="fakeMap">
+          <div className="pulse">📍</div>
+          {filtered.slice(0,8).map((t,i)=><button key={t.id} className="pin" style={{left:`${18+(i*23)%68}%`,top:`${25+(i*17)%55}%`}} onClick={()=>setQuery(t.name)} title={t.name}>🚽</button>)}
+          <span className="mapText">Mappa demo GPS<br/>le recensioni vicine vengono ordinate per distanza</span>
+        </div>
+        {geoError && <p className="warn">{geoError}</p>}
+        <div className="nearest">
+          <h2>Più vicini</h2>
+          {filtered.slice(0,3).map(t=><ToiletCard key={t.id} t={t} remove={remove}/>) }
+        </div>
+      </section>}
+
+      {tab==='add' && <section className="card">
+        <h2>Aggiungi bagno</h2>
+        <form onSubmit={addReview} className="form">
+          <label>Nome bagno / locale<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Es. Bar Centrale, Stazione..."/></label>
+          <label>Tipo<select value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option>Bagno pubblico</option><option>Bar / Locale</option><option>Ristorante</option><option>Stazione</option><option>Area servizio</option><option>Centro commerciale</option></select></label>
+          <label>Voto generale<Stars value={form.rating} setValue={v=>setForm({...form,rating:v})}/></label>
+          <label>Pulizia<Stars value={form.clean} setValue={v=>setForm({...form,clean:v})}/></label>
+          <div className="checks">
+            {['paper:Carta','soap:Sapone','free:Gratis','accessible:Disabili','baby:Fasciatoio'].map(x=>{const [k,label]=x.split(':');return <label key={k}><input type="checkbox" checked={form[k]} onChange={e=>setForm({...form,[k]:e.target.checked})}/> {label}</label>})}
+          </div>
+          <div className="coords"><label>Lat<input value={form.lat} onChange={e=>setForm({...form,lat:e.target.value})}/></label><label>Lng<input value={form.lng} onChange={e=>setForm({...form,lng:e.target.value})}/></label></div>
+          <button type="button" className="secondary" onClick={locate}><MapPin size={18}/> Usa posizione attuale</button>
+          <label>Commento<textarea value={form.comment} onChange={e=>setForm({...form,comment:e.target.value})} placeholder="Pulito? carta? odore? serve consumazione?"/></label>
+          <label className="photo"><Camera size={18}/> Aggiungi foto<input type="file" accept="image/*" capture="environment" onChange={handlePhoto}/></label>
+          {form.photo && <img src={form.photo} className="preview"/>}
+          <button className="primary"><Save size={18}/> Salva recensione</button>
+        </form>
+      </section>}
+
+      {tab==='list' && <section className="card"><h2>Recensioni</h2><div className="search"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Filtra recensioni..."/></div>{filtered.map(t=><ToiletCard key={t.id} t={t} remove={remove}/>)}</section>}
+    </main>
+
+    <nav className="bottom"><button onClick={()=>setTab('map')} className={tab==='map'?'active':''}><MapPin/>Mappa</button><button onClick={()=>setTab('add')} className={tab==='add'?'active':''}><Plus/>Aggiungi</button><button onClick={()=>setTab('list')} className={tab==='list'?'active':''}><Star/>Recensioni</button></nav>
+  </div>
+}
+
+function ToiletCard({t,remove}){return <article className="toiletCard">
+  {t.photo && <img src={t.photo} />}
+  <div className="tcBody"><div className="row"><h3>{t.name}</h3><button className="delete" onClick={()=>remove(t.id)}><Trash2 size={16}/></button></div><p className="type">{t.type}{t.dist!=null?` • ${t.dist<1?Math.round(t.dist*1000)+' m':t.dist.toFixed(1)+' km'}`:''}</p><Stars value={Number(t.rating)||0}/><p>{t.comment || 'Nessun commento.'}</p><div className="tags">{t.paper&&<span>Carta</span>}{t.soap&&<span>Sapone</span>}{t.free&&<span>Gratis</span>}{t.accessible&&<span>Disabili</span>}{t.baby&&<span>Fasciatoio</span>}</div><a target="_blank" href={`https://www.google.com/maps?q=${t.lat},${t.lng}`}>Apri in Google Maps</a></div>
+</article>}
+
+createRoot(document.getElementById('root')).render(<App/>);
