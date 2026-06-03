@@ -1,0 +1,1 @@
+Carica SOLO il file index.html nella root del repository WcLoVe. Prima cancella i vecchi file se GitHub mostra ancora codice.

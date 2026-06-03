@@ -1,251 +1,130 @@
-import { firebaseConfig, firebaseEnabled } from "./firebase-config.js";
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>WC LoVe</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--pink:#e85b92;--dark:#241b20;--bg:#f7f4f6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:var(--dark)}
+.hidden{display:none!important}.top{background:linear-gradient(135deg,#e85b92,#c73d78);color:white;padding:22px 18px 30px;display:flex;gap:15px;align-items:center}
+.logoBox{width:86px;height:86px;border-radius:26px;background:#ee5b96;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 8px 20px #0003}
+.wc{font-size:36px;font-weight:900;line-height:1}.heart{font-size:30px;color:#ffeaf1;line-height:1}h1{margin:0;font-size:30px}#mode{opacity:.9}
+main{padding:14px 14px 92px}.view{display:none}.view.active{display:block}.panel{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}.search{display:flex;gap:8px;flex:1;min-width:220px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:13px;font:inherit;background:white}textarea{min-height:90px}
+button{border:0;border-radius:13px;padding:12px 14px;font-weight:800;cursor:pointer}button.primary,.primary{background:var(--pink);color:white;box-shadow:0 5px 14px #e85b9255}#cityBtn,#gpsBtn,#logoutBtn{background:white;color:#c73d78;border:1px solid #ffd3e2}
+#map{height:calc(100vh - 265px);min-height:420px;border-radius:24px;box-shadow:0 10px 28px #0002;overflow:hidden}
+.card{background:white;max-width:850px;margin:auto;border-radius:24px;padding:18px;box-shadow:0 10px 28px #0002}.card label{display:block;font-weight:800;margin:12px 0}.card input,.card select,.card textarea{margin-top:6px;font-weight:400}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.item{background:white;border-radius:20px;padding:15px;margin:10px 0;box-shadow:0 5px 16px #0001}.item h3{margin:0 0 5px}.meta{color:#74676d}.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.chip{background:#fff0f6;color:#9f255e;border-radius:999px;padding:6px 9px;font-size:13px;font-weight:800}
+#gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px}#gallery img{width:100%;height:160px;object-fit:cover;border-radius:18px;box-shadow:0 5px 16px #0002}.profile{text-align:center}.badge{display:inline-block;margin-top:18px;background:#fff0f6;color:#9f255e;padding:10px 14px;border-radius:999px;font-weight:900}
+nav{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:#fffffff2;backdrop-filter:blur(12px);padding:8px 6px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -8px 25px #0002;z-index:9999}
+nav button{background:transparent;color:#73666d;padding:8px 3px}nav button.on{background:#fff0f6;color:#c73d78}nav span{display:block;font-size:11px;margin-top:2px}
+@media(max-width:700px){.top{align-items:flex-start}.grid{grid-template-columns:1fr}#map{height:calc(100vh - 300px);min-height:360px}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="logoBox"><div class="wc">WC</div><div class="heart">♡</div></div>
+  <div><h1>WC LoVe</h1><div id="mode">Modalità locale</div></div>
+</header>
 
-let auth, db, storage, user = null;
-let reviews = [];
-let currentPosition = null;
-let map, markersLayer;
+<main>
+<section id="mapView" class="view active">
+  <div class="panel">
+    <button id="nearBtn" class="primary">Trova bagni vicino a me</button>
+    <div class="search"><input id="city" placeholder="Ricerca città"><button id="cityBtn">Cerca</button></div>
+  </div>
+  <div id="map"></div>
+</section>
 
-const $ = (id) => document.getElementById(id);
+<section id="listView" class="view"><h2>Bagni</h2><div id="list"></div></section>
 
-async function initFirebase(){
-  if(!firebaseEnabled){
-    $("statusText").textContent = "Modalità locale: collega Firebase per database online";
-    loadLocal();
-    renderAll();
-    return;
-  }
+<section id="addView" class="view">
+<form id="form" class="card">
+<h2>Recensisci un bagno</h2>
+<label>Nome luogo<input id="place" required></label>
+<label>Città<input id="town"></label>
+<label>Voto<select id="rating"><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select></label>
+<div class="grid">
+<label>Pulizia<select id="clean"><option value="5">Ottima</option><option value="4">Buona</option><option value="3">Normale</option><option value="2">Scarsa</option><option value="1">Pessima</option></select></label>
+<label>Carta igienica<select id="paper"><option>Sì</option><option>No</option><option>Non so</option></select></label>
+<label>Sapone<select id="soap"><option>Sì</option><option>No</option><option>Non so</option></select></label>
+<label>Accessibilità disabili<select id="access"><option>Sì</option><option>No</option><option>Non so</option></select></label>
+<label>Fasciatoio<select id="baby"><option>Sì</option><option>No</option><option>Non so</option></select></label>
+<label>Foto<input id="photo" type="file" accept="image/*"></label>
+</div>
+<label>Commento<textarea id="comment"></textarea></label>
+<div class="actions"><button type="button" id="gpsBtn">Usa posizione GPS</button><button class="primary" type="submit">Salva recensione</button></div>
+<p id="msg"></p>
+</form>
+</section>
 
-  const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js");
-  const { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js");
-  const { getFirestore, collection, addDoc, getDocs, query, orderBy, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js");
-  const { getStorage, ref, uploadBytes, getDownloadURL } = await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js");
+<section id="galleryView" class="view"><h2>Galleria immagini</h2><div id="gallery"></div></section>
+<section id="rankView" class="view"><h2>Classifica utenti</h2><div id="rank"></div></section>
+<section id="profileView" class="view"><div class="card profile"><h2>Profilo</h2><div id="userBox"><p>Profilo locale</p></div><div class="badge">🏅 Badge: Ispettore WC</div></div></section>
+</main>
 
-  window.firebaseApi = { GoogleAuthProvider, signInWithPopup, signOut, collection, addDoc, getDocs, query, orderBy, serverTimestamp, ref, uploadBytes, getDownloadURL };
-  const app = initializeApp(firebaseConfig);
-  auth = getAuth(app); db = getFirestore(app); storage = getStorage(app);
+<nav>
+<button data-go="listView">🚻<span>Bagni</span></button>
+<button data-go="mapView" class="on">🗺️<span>Mappa</span></button>
+<button data-go="addView">➕<span>Recensisci</span></button>
+<button data-go="rankView">🏆<span>Classifica</span></button>
+<button data-go="profileView">👤<span>Profilo</span></button>
+</nav>
 
-  onAuthStateChanged(auth, async (u)=>{
-    user = u;
-    updateUserUI();
-    await loadFirebase();
-  });
-}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let reviews = JSON.parse(localStorage.getItem("wcLoveReviews") || "[]");
+let gps = null;
+let map, layer;
+const $ = id => document.getElementById(id);
 
 function initMap(){
   map = L.map("map").setView([45.4642, 9.19], 13);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "© OpenStreetMap"
-  }).addTo(map);
-  markersLayer = L.layerGroup().addTo(map);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
+  layer = L.layerGroup().addTo(map);
+  render();
 }
-
-function setView(name){
+function show(id){
   document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
-  $("view-"+name).classList.add("active");
-  document.querySelectorAll(".bottom-nav button").forEach(b=>b.classList.toggle("active", b.dataset.view===name));
-  if(name==="home" && map) setTimeout(()=>map.invalidateSize(), 200);
+  $(id).classList.add("active");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.go===id));
+  if(id==="mapView") setTimeout(()=>map.invalidateSize(),200);
 }
-
-function stars(n){ return "⭐".repeat(Number(n||0)); }
-function yn(v){ return v==="yes" ? "Sì" : v==="no" ? "No" : "Non so"; }
-
-function renderAll(){
-  renderMap();
-  renderList();
-  renderGallery();
-  renderRanking();
-  updateUserUI();
-}
-
+function stars(n){return "⭐".repeat(Number(n||0))}
+function esc(s){return String(s??"").replace(/[&<>'"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#039;",'"':"&quot;"}[m]))}
+function save(){localStorage.setItem("wcLoveReviews", JSON.stringify(reviews))}
+function render(){renderMap();renderList();renderGallery();renderRank()}
 function renderMap(){
-  if(!markersLayer) return;
-  markersLayer.clearLayers();
-  reviews.forEach(r=>{
-    if(r.lat && r.lng){
-      const marker = L.marker([r.lat, r.lng]).addTo(markersLayer);
-      marker.bindPopup(`<b>${escapeHtml(r.placeName)}</b><br>${stars(r.rating)}<br>${escapeHtml(r.cityName||"")}`);
-    }
-  });
+  if(!layer)return; layer.clearLayers();
+  reviews.forEach(r=>{if(r.lat&&r.lng)L.marker([r.lat,r.lng]).addTo(layer).bindPopup("<b>"+esc(r.place)+"</b><br>"+stars(r.rating)+"<br>"+esc(r.town));});
 }
-
 function renderList(){
-  const box = $("bathroomList");
-  if(!reviews.length){ box.innerHTML = `<div class="item">Nessun bagno recensito.</div>`; return; }
-  box.innerHTML = reviews.map(r=>`
-    <article class="item">
-      <h3>${escapeHtml(r.placeName)}</h3>
-      <div class="meta">${stars(r.rating)} · ${escapeHtml(r.cityName||"")} · ${escapeHtml(r.userName||"Utente")}</div>
-      <p>${escapeHtml(r.comment||"")}</p>
-      <div class="chips">
-        <span class="chip">Pulizia ${r.cleanliness}/5</span>
-        <span class="chip">Carta: ${yn(r.toiletPaper)}</span>
-        <span class="chip">Sapone: ${yn(r.soap)}</span>
-        <span class="chip">Disabili: ${yn(r.accessible)}</span>
-        <span class="chip">Fasciatoio: ${yn(r.changingTable)}</span>
-      </div>
-    </article>`).join("");
+  $("list").innerHTML = reviews.length ? reviews.map(r=>`
+  <div class="item"><h3>${esc(r.place)}</h3><div class="meta">${stars(r.rating)} · ${esc(r.town)} · ${esc(r.userName)}</div><p>${esc(r.comment)}</p>
+  <div class="chips"><span class="chip">Pulizia ${esc(r.clean)}/5</span><span class="chip">Carta ${esc(r.paper)}</span><span class="chip">Sapone ${esc(r.soap)}</span><span class="chip">Disabili ${esc(r.access)}</span><span class="chip">Fasciatoio ${esc(r.baby)}</span></div></div>`).join("") : `<div class="item">Nessun bagno recensito.</div>`;
 }
-
 function renderGallery(){
-  const imgs = reviews.filter(r=>r.photoUrl);
-  $("gallery").innerHTML = imgs.length ? imgs.map(r=>`<img src="${r.photoUrl}" alt="${escapeHtml(r.placeName)}">`).join("") : `<div class="item">Nessuna foto caricata.</div>`;
+  const imgs=reviews.filter(r=>r.photoUrl);
+  $("gallery").innerHTML=imgs.length?imgs.map(r=>`<img src="${r.photoUrl}" alt="${esc(r.place)}">`).join(""):`<div class="item">Nessuna foto caricata.</div>`;
 }
-
-function renderRanking(){
-  const counts = {};
-  reviews.forEach(r=>{
-    const name = r.userName || "Utente";
-    counts[name] = (counts[name]||0)+1;
-  });
-  const rows = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  $("rankingList").innerHTML = rows.length ? rows.map(([name,count],i)=>`
-    <div class="item"><b>${i+1}. ${escapeHtml(name)}</b><div class="meta">${count} recensioni · 🏅 Ispettore WC</div></div>
-  `).join("") : `<div class="item">Nessuna classifica disponibile.</div>`;
+function renderRank(){
+  const c={}; reviews.forEach(r=>c[r.userName||"Utente locale"]=(c[r.userName||"Utente locale"]||0)+1);
+  const rows=Object.entries(c).sort((a,b)=>b[1]-a[1]);
+  $("rank").innerHTML=rows.length?rows.map((x,i)=>`<div class="item"><b>${i+1}. ${esc(x[0])}</b><div class="meta">${x[1]} recensioni · 🏅 Ispettore WC</div></div>`).join(""):`<div class="item">Nessun utente in classifica.</div>`;
 }
+function getGps(){return new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:12000}))}
+function fileData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}
 
-function updateUserUI(){
-  const logged = !!user;
-  $("loginBtn").classList.toggle("hidden", logged);
-  $("logoutBtn").classList.toggle("hidden", !logged);
-  $("profileBox").classList.toggle("hidden", logged);
-  $("loggedBox").classList.toggle("hidden", !logged);
-  if(logged){
-    $("userPhoto").src = user.photoURL || "";
-    $("userName").textContent = user.displayName || "Utente";
-    $("userEmail").textContent = user.email || "";
-    const count = reviews.filter(r=>r.uid === user.uid).length;
-    $("reviewCount").textContent = `${count} recensioni pubblicate`;
-  }
-}
-
-async function login(){
-  if(!firebaseEnabled){ alert("Prima collega Firebase nel file firebase-config.js"); return; }
-  const { GoogleAuthProvider, signInWithPopup } = window.firebaseApi;
-  await signInWithPopup(auth, new GoogleAuthProvider());
-}
-
-async function logout(){
-  if(!firebaseEnabled) return;
-  await window.firebaseApi.signOut(auth);
-}
-
-async function loadFirebase(){
-  if(!firebaseEnabled){ loadLocal(); renderAll(); return; }
-  const { collection, getDocs, query, orderBy } = window.firebaseApi;
-  const snap = await getDocs(query(collection(db,"reviews"), orderBy("createdAt","desc")));
-  reviews = snap.docs.map(d=>({id:d.id, ...d.data()}));
-  renderAll();
-}
-
-function loadLocal(){
-  reviews = JSON.parse(localStorage.getItem("wcLoveReviews") || "[]");
-}
-
-function saveLocal(review){
-  reviews.unshift(review);
-  localStorage.setItem("wcLoveReviews", JSON.stringify(reviews));
-  renderAll();
-}
-
-async function saveReview(review, file){
-  if(firebaseEnabled && user){
-    const { collection, addDoc, serverTimestamp, ref, uploadBytes, getDownloadURL } = window.firebaseApi;
-    review.uid = user.uid;
-    review.userName = user.displayName || "Utente";
-    review.userEmail = user.email || "";
-    review.createdAt = serverTimestamp();
-
-    if(file){
-      const path = `photos/${Date.now()}-${file.name}`;
-      const sref = ref(storage, path);
-      await uploadBytes(sref, file);
-      review.photoUrl = await getDownloadURL(sref);
-    }
-    await addDoc(collection(db,"reviews"), review);
-    await loadFirebase();
-  } else {
-    review.userName = "Utente locale";
-    review.createdAt = new Date().toISOString();
-    if(file) review.photoUrl = await fileToDataUrl(file);
-    saveLocal(review);
-  }
-}
-
-function fileToDataUrl(file){
-  return new Promise((res,rej)=>{
-    const reader = new FileReader();
-    reader.onload=()=>res(reader.result);
-    reader.onerror=rej;
-    reader.readAsDataURL(file);
-  });
-}
-
-function getPosition(){
-  return new Promise((resolve,reject)=>{
-    navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,timeout:12000});
-  });
-}
-
-function escapeHtml(str){
-  return String(str ?? "").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
-}
-
-document.addEventListener("DOMContentLoaded", async ()=>{
+document.addEventListener("DOMContentLoaded",()=>{
   initMap();
-  await initFirebase();
-
-  document.querySelectorAll(".bottom-nav button").forEach(btn=>btn.addEventListener("click",()=>setView(btn.dataset.view)));
-  $("loginBtn").onclick = login;
-  $("profileLoginBtn").onclick = login;
-  $("logoutBtn").onclick = logout;
-  $("refreshBtn").onclick = ()=> firebaseEnabled ? loadFirebase() : (loadLocal(), renderAll());
-
-  $("nearMeBtn").onclick = async ()=>{
-    try{
-      const pos = await getPosition();
-      currentPosition = {lat:pos.coords.latitude,lng:pos.coords.longitude};
-      map.setView([currentPosition.lat,currentPosition.lng],16);
-      L.marker([currentPosition.lat,currentPosition.lng]).addTo(markersLayer).bindPopup("Sei qui").openPopup();
-    }catch(e){ alert("GPS non disponibile o permesso negato."); }
-  };
-
-  $("usePositionBtn").onclick = async ()=>{
-    try{
-      const pos = await getPosition();
-      currentPosition = {lat:pos.coords.latitude,lng:pos.coords.longitude};
-      $("formMsg").textContent = "Posizione GPS acquisita.";
-    }catch(e){ $("formMsg").textContent = "GPS non disponibile."; }
-  };
-
-  $("cityBtn").onclick = async ()=>{
-    const city = $("cityInput").value.trim();
-    if(!city) return;
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}`);
-    const data = await res.json();
-    if(data[0]) map.setView([Number(data[0].lat), Number(data[0].lon)], 14);
-  };
-
-  $("reviewForm").addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    $("formMsg").textContent = "Salvataggio...";
-    const review = {
-      placeName:$("placeName").value.trim(),
-      cityName:$("cityName").value.trim(),
-      rating:Number($("rating").value),
-      cleanliness:Number($("cleanliness").value),
-      toiletPaper:$("toiletPaper").value,
-      soap:$("soap").value,
-      accessible:$("accessible").value,
-      changingTable:$("changingTable").value,
-      comment:$("comment").value.trim(),
-      lat:currentPosition?.lat || null,
-      lng:currentPosition?.lng || null
-    };
-    const file = $("photoInput").files[0] || null;
-    await saveReview(review, file);
-    e.target.reset();
-    $("formMsg").textContent = "Recensione salvata.";
-    setView("bagni");
-  });
+  document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>show(b.dataset.go));
+  $("nearBtn").onclick=async()=>{try{const p=await getGps();gps={lat:p.coords.latitude,lng:p.coords.longitude};map.setView([gps.lat,gps.lng],16);L.marker([gps.lat,gps.lng]).addTo(layer).bindPopup("Sei qui").openPopup()}catch(e){alert("GPS non disponibile o permesso negato.")}};
+  $("gpsBtn").onclick=async()=>{try{const p=await getGps();gps={lat:p.coords.latitude,lng:p.coords.longitude};$("msg").textContent="Posizione GPS acquisita."}catch(e){$("msg").textContent="GPS non disponibile."}};
+  $("cityBtn").onclick=async()=>{const q=$("city").value.trim();if(!q)return;const res=await fetch("https://nominatim.openstreetmap.org/search?format=json&q="+encodeURIComponent(q));const data=await res.json();if(data[0])map.setView([Number(data[0].lat),Number(data[0].lon)],14)};
+  $("form").onsubmit=async e=>{e.preventDefault();$("msg").textContent="Salvataggio...";let photoUrl=null;const file=$("photo").files[0];if(file)photoUrl=await fileData(file);reviews.unshift({place:$("place").value.trim(),town:$("town").value.trim(),rating:$("rating").value,clean:$("clean").value,paper:$("paper").value,soap:$("soap").value,access:$("access").value,baby:$("baby").value,comment:$("comment").value.trim(),lat:gps?.lat||null,lng:gps?.lng||null,photoUrl,userName:"Utente locale",createdAt:new Date().toISOString()});save();render();e.target.reset();$("msg").textContent="Recensione salvata.";show("listView")};
 });
+</script>
+</body>
+</html>
