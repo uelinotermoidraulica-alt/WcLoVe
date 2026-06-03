@@ -1,34 +1,9 @@
-# WC LoVe
-
-App professionale statica per GitHub Pages.
-
-## Funzioni
-- Mappa GPS con OpenStreetMap/Leaflet
-- Trova bagni vicino a me
-- Ricerca città
-- Recensioni con voto, pulizia, carta, sapone, accessibilità, fasciatoio
-- Foto e galleria
-- Login Google con Firebase
-- Classifica utenti
-- Badge Ispettore WC
-- Database online Firebase Firestore + Storage
-- Modalità locale automatica se Firebase non è ancora configurato
-
-## Pubblicazione su GitHub Pages
-Carica tutti i file nella root del repository oppure nella cartella usata da Pages.
-
-## Configurazione Firebase
-Apri `firebase-config.js` e sostituisci i valori `INSERISCI_...`.
-
-Poi in Firebase:
-1. Authentication > Sign-in method > abilita Google
-2. Firestore Database > crea database
-3. Storage > crea bucket
-4. Aggiungi il dominio GitHub Pages tra i domini autorizzati di Authentication
-
-## File principali
-- index.html
-- styles.css
-- app.js
-- firebase-config.js
-- manifest.json
+{
+  "name": "WC LoVe",
+  "short_name": "WC LoVe",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f3f4",
+  "theme_color": "#e85b92",
+  "icons": []
+}
