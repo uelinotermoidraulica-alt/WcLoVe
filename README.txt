@@ -1,1 +1,1 @@
-Carica SOLO il file index.html nella root del repository WcLoVe. Prima cancella i vecchi file se GitHub mostra ancora codice.
+WC LoVe finale: carica index.html nella root del repository GitHub Pages. Versione statica locale con GPS, mappa, recensioni 1-10, profilo foto/nome/email.
